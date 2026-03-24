@@ -20,6 +20,7 @@ redis[asyncio]
 
 # Config management
 pydantic-settings
+pydantic[email]
 
 # Static file serving
 aiofiles
@@ -27,3 +28,16 @@ aiofiles
 # PostgreSQL async
 sqlalchemy[asyncio]
 asyncpg
+
+# Auth
+python-jose[cryptography]
+passlib[bcrypt]
+
+# Reranker
+sentence-transformers
+
+# Testing
+pytest
+pytest-asyncio
+httpx
+aiosqlite
