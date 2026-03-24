@@ -1,12 +1,16 @@
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar/Sidebar';
 import { Header } from './components/Header/Header';
 import { ChatArea } from './components/Chat/ChatArea';
 import { ChatInput } from './components/Input/ChatInput';
+import { LoginPage } from './components/Auth/LoginPage';
 import { useChat } from './hooks/useChat';
+import { auth } from './api/client';
 import styles from './App.module.css';
 
 export default function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(!!auth.getToken());
+
   const {
     sessions,
     currentSessionId,
@@ -20,10 +24,15 @@ export default function App() {
     deleteSession,
   } = useChat();
 
-  // Load history of current session on mount
   useEffect(() => {
-    loadHistory(currentSessionId);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    if (isAuthenticated) {
+      loadHistory(currentSessionId);
+    }
+  }, [isAuthenticated]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!isAuthenticated) {
+    return <LoginPage onLogin={() => setIsAuthenticated(true)} />;
+  }
 
   return (
     <div className={styles.app}>
@@ -35,7 +44,7 @@ export default function App() {
         onDeleteSession={deleteSession}
       />
       <div className={styles.main}>
-        <Header />
+        <Header onLogout={() => { auth.clearToken(); setIsAuthenticated(false); }} />
         <ChatArea
           messages={messages}
           isLoading={isLoading}

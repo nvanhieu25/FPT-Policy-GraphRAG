@@ -69,3 +69,24 @@
   0%, 100% { opacity: 1; }
   50% { opacity: 0.4; }
 }
+
+.logoutBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.logoutBtn:hover {
+  background: #fff1f2;
+  border-color: #fca5a5;
+  color: #e5000f;
+}
