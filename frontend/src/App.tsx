@@ -17,7 +17,6 @@ function ChatApp({ onLogout }: { onLogout: () => void }) {
     isLoading,
     isLoadingHistory,
     sendMessage,
-    loadHistory,
     switchSession,
     newConversation,
     deleteSession,
