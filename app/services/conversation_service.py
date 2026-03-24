@@ -11,7 +11,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models import Conversation, Message
 
 
-async def get_or_create_conversation(db: AsyncSession, session_id: str) -> Conversation:
+async def get_or_create_conversation(
+    db: AsyncSession,
+    session_id: str,
+    user_id: str | None = None,
+) -> Conversation:
     """Return existing conversation or create a new one."""
     result = await db.get(Conversation, session_id)
     if result:
@@ -22,6 +26,7 @@ async def get_or_create_conversation(db: AsyncSession, session_id: str) -> Conve
         message_count=0,
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow(),
+        user_id=user_id,
     )
     db.add(conv)
     await db.commit()
@@ -34,9 +39,10 @@ async def save_messages(
     session_id: str,
     user_query: str,
     ai_answer: str,
+    user_id: str | None = None,
 ) -> Conversation:
     """Save a user+AI message pair and update the conversation metadata."""
-    conv = await get_or_create_conversation(db, session_id)
+    conv = await get_or_create_conversation(db, session_id, user_id=user_id)
 
     # Set title from first user message
     if conv.title == "Cuộc trò chuyện mới":
@@ -54,11 +60,17 @@ async def save_messages(
     return conv
 
 
-async def list_conversations(db: AsyncSession) -> list[Conversation]:
-    """Return all conversations ordered by last updated."""
-    result = await db.execute(
-        select(Conversation).order_by(Conversation.updated_at.desc())
-    )
+async def get_conversation(db: AsyncSession, session_id: str) -> Conversation | None:
+    """Return a conversation by session_id, or None if not found."""
+    return await db.get(Conversation, session_id)
+
+
+async def list_conversations(db: AsyncSession, user_id: str | None = None) -> list[Conversation]:
+    """Return conversations ordered by last updated, filtered by user_id when provided."""
+    query = select(Conversation).order_by(Conversation.updated_at.desc())
+    if user_id is not None:
+        query = query.where(Conversation.user_id == user_id)
+    result = await db.execute(query)
     return result.scalars().all()
 
 

@@ -31,6 +31,18 @@ class Settings(BaseSettings):
     # PostgreSQL
     postgres_url: str = "postgresql+asyncpg://fpt:fpt_password@localhost:5432/fpt_chat"
 
+    # Auth
+    jwt_secret_key: str = "change-me-in-production"
+    jwt_algorithm: str = "HS256"
+    jwt_access_token_expire_minutes: int = 60 * 24
+
+    # Reranker
+    reranker_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    reranker_top_n: int = 3
+
+    # RAG cache
+    rag_cache_ttl_seconds: int = 3600
+
     # LangSmith (optional)
     langchain_tracing_v2: bool = False
     langchain_api_key: str = ""

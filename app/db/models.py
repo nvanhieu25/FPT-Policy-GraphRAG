@@ -4,12 +4,23 @@ app/db/models.py
 SQLAlchemy ORM models for persistent conversation storage.
 """
 from datetime import datetime
-from sqlalchemy import Column, String, Text, Integer, DateTime, ForeignKey
+from sqlalchemy import Boolean, Column, String, Text, Integer, DateTime, ForeignKey
 from sqlalchemy.orm import relationship, DeclarativeBase
 
 
 class Base(DeclarativeBase):
     pass
+
+
+class User(Base):
+    __tablename__ = "users"
+    id               = Column(String(36), primary_key=True)
+    email            = Column(String(255), unique=True, nullable=False, index=True)
+    username         = Column(String(100), unique=True, nullable=False)
+    hashed_password  = Column(String(255), nullable=False)
+    is_active        = Column(Boolean, default=True, nullable=False)
+    created_at       = Column(DateTime, default=datetime.utcnow, nullable=False)
+    conversations    = relationship("Conversation", back_populates="user")
 
 
 class Conversation(Base):
@@ -20,6 +31,8 @@ class Conversation(Base):
     message_count = Column(Integer, default=0, nullable=False)
     created_at   = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at   = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    user    = relationship("User", back_populates="conversations")
 
     messages = relationship(
         "Message",

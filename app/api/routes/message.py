@@ -14,24 +14,30 @@ from app.services.ai_service import run_query
 from app.services.cache_service import get_chat_history, update_chat_history
 from app.services.conversation_service import save_messages
 from app.db.session import get_db
+from app.core.auth import get_current_user
+from app.db.models import User
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
 @router.post("/chat", response_model=ChatResponse, summary="Send a message to the compliance assistant")
-async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)) -> ChatResponse:
+async def chat(
+    request: ChatRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ChatResponse:
     session_id = request.session_id
     query      = request.query
 
-    logger.info("[/chat] session=%s | query='%s'", session_id, query[:80])
+    logger.info("[/chat] user=%s session=%s | query='%s'", current_user.id, session_id, query[:80])
 
     # 1. Load existing history from Redis (LangChain context)
     history = await get_chat_history(session_id)
 
-    # 2. Run GraphRAG pipeline
+    # 2. Run GraphRAG pipeline (with RAG cache)
     try:
-        answer = run_query(question=query, history=history)
+        answer = await run_query(question=query, history=history)
     except Exception as e:
         logger.error("[/chat] Pipeline error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=f"Pipeline error: {e}") from e
@@ -42,7 +48,7 @@ async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)) -> Chat
     await update_chat_history(session_id, history)
 
     # 4. Persist to PostgreSQL
-    await save_messages(db, session_id, query, answer)
+    await save_messages(db, session_id, query, answer, user_id=current_user.id)
 
     logger.info("[/chat] session=%s | answer generated (%d chars)", session_id, len(answer))
     return ChatResponse(session_id=session_id, answer=answer)

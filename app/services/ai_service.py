@@ -130,16 +130,16 @@ def get_super_agent():
     return _super_agent
 
 
-def run_query(question: str, history: list[BaseMessage] | None = None) -> str:
-    """Run a single user question through the full GraphRAG pipeline.
+async def run_query(question: str, history: list[BaseMessage] | None = None) -> str:
+    """Run a single user question through the full GraphRAG pipeline with Redis caching."""
+    from app.services.cache_service import get_rag_cache, set_rag_cache
 
-    Args:
-        question: The user's query string.
-        history:  Conversation history as a list of LangChain BaseMessage objects.
+    # Check RAG cache first
+    cached = await get_rag_cache(question)
+    if cached:
+        logger.info("[AIService] RAG cache hit — skipping pipeline.")
+        return cached
 
-    Returns:
-        The final answer string.
-    """
     agent = get_super_agent()
     initial_state = {
         "messages": history or [HumanMessage(content=question)],
@@ -148,4 +148,8 @@ def run_query(question: str, history: list[BaseMessage] | None = None) -> str:
         "final_answer": "",
     }
     final_state = agent.invoke(initial_state)
-    return final_state["final_answer"]
+    answer = final_state["final_answer"]
+
+    # Cache the result
+    await set_rag_cache(question, answer)
+    return answer

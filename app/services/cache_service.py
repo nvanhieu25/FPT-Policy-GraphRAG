@@ -69,3 +69,41 @@ async def delete_chat_history(session_id: str) -> None:
         logger.warning("[Cache] Failed to delete history for session '%s': %s", session_id, e)
     finally:
         await client.aclose()
+
+
+import hashlib
+import json
+from app.core.config import settings
+
+
+def _rag_cache_key(query: str) -> str:
+    h = hashlib.sha256(query.strip().lower().encode()).hexdigest()
+    return f"rag:cache:{h}"
+
+
+async def get_rag_cache(query: str) -> str | None:
+    """Return cached RAG answer for query, or None on miss."""
+    client = get_redis_client()
+    try:
+        raw = await client.get(_rag_cache_key(query))
+        if raw is None:
+            return None
+        logger.debug("[RAGCache] Cache hit for query.")
+        return raw.decode()
+    except Exception as e:
+        logger.warning("[RAGCache] get failed: %s", e)
+        return None
+    finally:
+        await client.aclose()
+
+
+async def set_rag_cache(query: str, answer: str) -> None:
+    """Store RAG answer in Redis with TTL."""
+    client = get_redis_client()
+    try:
+        await client.set(_rag_cache_key(query), answer.encode(), ex=settings.rag_cache_ttl_seconds)
+        logger.debug("[RAGCache] Cached answer for query.")
+    except Exception as e:
+        logger.warning("[RAGCache] set failed: %s", e)
+    finally:
+        await client.aclose()

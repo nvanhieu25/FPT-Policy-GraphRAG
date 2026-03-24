@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from langchain_openai import ChatOpenAI
 
 from app.core.database import get_qdrant_vector_store, get_neo4j_graph
+from app.services.reranker import rerank
 
 
 # ---------------------------------------------------------------------------
@@ -69,7 +70,8 @@ def qdrant_search_node(state: dict) -> dict:
     print(f"[QdrantSearch] Executing vector search for: {query}")
     try:
         qdrant = get_qdrant_vector_store()
-        docs = qdrant.similarity_search(query, k=3)
+        docs = qdrant.similarity_search(query, k=5)
+        docs = rerank(query, docs)
         context = "\n\n".join(doc.page_content for doc in docs)
         return {"qdrant_context": context}
     except Exception as e:
