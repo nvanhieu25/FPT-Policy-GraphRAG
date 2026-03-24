@@ -48,7 +48,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
   if (res.status === 401) {
     auth.clearToken();
-    window.location.reload();
+    window.dispatchEvent(new Event('auth:logout'));
     throw new Error('Phiên đăng nhập hết hạn');
   }
 
