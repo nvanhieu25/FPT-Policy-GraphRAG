@@ -1,0 +1,157 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# FPT Policy GraphRAG — Full Stack
+#
+# Khởi động toàn bộ hệ thống:
+#   docker compose up --build
+#
+# Port mapping (host → container):
+#   Frontend    : http://localhost:3000
+#   Backend     : http://localhost:8000
+#   Neo4j UI    : http://localhost:7474
+#   Qdrant      : http://localhost:6335
+#   Redis       : localhost:6380
+#   PostgreSQL  : localhost:5433
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── PostgreSQL (Conversation Storage) ────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: fpt_postgres
+    ports:
+      - "5433:5432"   # host:5433 (tránh xung đột nếu có postgres native)
+    environment:
+      POSTGRES_USER: fpt
+      POSTGRES_PASSWORD: fpt_password
+      POSTGRES_DB: fpt_chat
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fpt -d fpt_chat"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - fpt_net
+
+  # ── Neo4j (Graph Database) ────────────────────────────────────────────────
+  neo4j:
+    image: neo4j:5
+    container_name: fpt_neo4j
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      NEO4J_AUTH: neo4j/password
+      NEO4J_apoc_export_file_enabled: "true"
+      NEO4J_apoc_import_file_enabled: "true"
+      NEO4J_apoc_import_file_use__neo4j__config: "true"
+      NEO4J_PLUGINS: '["apoc"]'
+      NEO4J_server_memory_heap_initial__size: 512m
+      NEO4J_server_memory_heap_max__size: 1g
+    volumes:
+      - ./data/neo4j:/data
+    healthcheck:
+      test: ["CMD", "neo4j", "status"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - fpt_net
+
+  # ── Qdrant (Vector Database) ──────────────────────────────────────────────
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: fpt_qdrant
+    ports:
+      - "6335:6333"
+      - "6336:6334"
+    volumes:
+      - ./data/qdrant:/qdrant/storage
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/6333"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+    networks:
+      - fpt_net
+
+  # ── Redis (AI Context Cache) ───────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: fpt_redis
+    command: redis-server --save 60 1 --loglevel warning
+    ports:
+      - "6380:6379"
+    volumes:
+      - ./data/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - fpt_net
+
+  # ── Backend (FastAPI) ─────────────────────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    container_name: fpt_backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      NEO4J_URI: bolt://neo4j:7687
+      QDRANT_URL: http://qdrant:6333
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      POSTGRES_URL: postgresql+asyncpg://fpt:fpt_password@postgres:5432/fpt_chat
+    depends_on:
+      postgres:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - fpt_net
+
+  # ── Frontend (React → Nginx) ──────────────────────────────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend.Dockerfile
+    container_name: fpt_frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - fpt_net
+
+# ─────────────────────────────────────────────────────────────────────────────
+networks:
+  fpt_net:
+    driver: bridge

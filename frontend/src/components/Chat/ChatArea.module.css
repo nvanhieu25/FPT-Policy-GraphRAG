@@ -1,0 +1,40 @@
+.area {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  scroll-behavior: smooth;
+}
+
+.area::-webkit-scrollbar { width: 5px; }
+.area::-webkit-scrollbar-track { background: transparent; }
+.area::-webkit-scrollbar-thumb { background: #d0d5dd; border-radius: 3px; }
+.area::-webkit-scrollbar-thumb:hover { background: #b0b8c4; }
+
+.messages {
+  padding: 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  flex: 1;
+}
+
+.loadingScreen {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: #94a3b8;
+  font-size: 14px;
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
+  color: #E5000F;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}

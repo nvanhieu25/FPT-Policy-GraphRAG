@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+*.egg-info/
+dist/
+build/
+
+# Virtualenv
+.venv/
+venv/
+env/
+
+# Node (frontend built separately inside Docker)
+frontend/node_modules/
+frontend/.vite/
+
+# Data volumes (mounted at runtime)
+data/
+
+# Git
+.git/
+.gitignore
+
+# Environment secrets
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+
+# Misc
+*.md
+notebooks/
+tests/

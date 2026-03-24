@@ -1,0 +1,29 @@
+langchain
+langchain-core
+langchain-openai
+langchain-community
+langchain-experimental
+langchain-qdrant
+langgraph
+qdrant-client
+neo4j
+pymupdf
+python-dotenv
+tiktoken
+
+# FastAPI & web server
+fastapi
+uvicorn[standard]
+
+# Redis cache
+redis[asyncio]
+
+# Config management
+pydantic-settings
+
+# Static file serving
+aiofiles
+
+# PostgreSQL async
+sqlalchemy[asyncio]
+asyncpg

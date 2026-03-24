@@ -1,0 +1,302 @@
+.sidebar {
+  width: 268px;
+  flex-shrink: 0;
+  background: #0f172a;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  border-right: 1px solid rgba(255 255 255 / 0.07);
+}
+
+/* Logo */
+.logoArea {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 20px 18px 16px;
+  border-bottom: 1px solid rgba(255 255 255 / 0.07);
+}
+
+.logo {
+  height: 40px;
+  width: 80px;
+  object-fit: contain;
+  object-position: left center;
+}
+
+.logoMeta {
+  display: flex;
+  flex-direction: column;
+}
+
+.logoTitle {
+  font-size: 13px;
+  font-weight: 700;
+  color: #f1f5f9;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+}
+
+.logoSub {
+  font-size: 10px;
+  color: rgba(255 255 255 / 0.35);
+  margin-top: 2px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+}
+
+/* Actions */
+.actions {
+  padding: 14px 14px 6px;
+}
+
+.btnNew {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  background: #E5000F;
+  color: #fff;
+  border: none;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+  font-family: inherit;
+}
+
+.btnNew:hover { background: #c0000a; }
+.btnNew:active { transform: scale(0.97); }
+
+/* Sections */
+.section {
+  padding: 14px 14px 0;
+}
+
+.sectionLabel {
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(255 255 255 / 0.3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 8px;
+}
+
+/* Session card */
+.sessionCard {
+  background: rgba(255 255 255 / 0.04);
+  border: 1px solid rgba(255 255 255 / 0.08);
+  border-radius: 9px;
+  padding: 10px 12px;
+}
+
+.sessionRow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.sessionIcon {
+  color: rgba(255 255 255 / 0.35);
+  flex-shrink: 0;
+}
+
+.sessionId {
+  font-size: 11.5px;
+  font-family: 'Courier New', monospace;
+  color: rgba(255 255 255 / 0.65);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sessionStats {
+  margin-top: 5px;
+  font-size: 10.5px;
+  color: rgba(255 255 255 / 0.28);
+}
+
+/* Session list */
+.sessionList {
+  overflow-y: auto;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-right: 2px;
+}
+
+.sessionList::-webkit-scrollbar { width: 3px; }
+.sessionList::-webkit-scrollbar-track { background: transparent; }
+.sessionList::-webkit-scrollbar-thumb { background: rgba(255 255 255 / 0.1); border-radius: 3px; }
+
+.sessionItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.12s;
+  border: 1px solid transparent;
+  min-width: 0;
+}
+
+.sessionItem:hover {
+  background: rgba(255 255 255 / 0.05);
+}
+
+.sessionItemActive {
+  background: rgba(229 0 15 / 0.12) !important;
+  border-color: rgba(229 0 15 / 0.25);
+}
+
+.sessionItemIcon {
+  color: rgba(255 255 255 / 0.3);
+  flex-shrink: 0;
+}
+
+.sessionItemActive .sessionItemIcon {
+  color: #ff6b72;
+}
+
+.sessionItemBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sessionItemTitle {
+  font-size: 12px;
+  color: rgba(255 255 255 / 0.7);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+}
+
+.sessionItemActive .sessionItemTitle {
+  color: #f1f5f9;
+  font-weight: 500;
+}
+
+.sessionItemMeta {
+  font-size: 10px;
+  color: rgba(255 255 255 / 0.25);
+}
+
+.btnDeleteSession {
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  color: rgba(255 255 255 / 0.25);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  transition: color 0.12s, background 0.12s;
+}
+
+.btnDeleteSession:hover {
+  color: #ef4444;
+  background: rgba(239 68 68 / 0.15);
+}
+
+.emptyHint {
+  font-size: 11px;
+  color: rgba(255 255 255 / 0.2);
+  text-align: center;
+  padding: 16px 0;
+}
+
+/* Status card */
+.statusCard {
+  background: rgba(255 255 255 / 0.03);
+  border: 1px solid rgba(255 255 255 / 0.07);
+  border-radius: 9px;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.statusRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.statusIcon { color: rgba(255 255 255 / 0.3); flex-shrink: 0; }
+
+.statusLabel {
+  font-size: 11.5px;
+  color: rgba(255 255 255 / 0.45);
+  flex: 1;
+}
+
+.statusIndicator { flex-shrink: 0; }
+
+.dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.dotChecking {
+  background: #94a3b8;
+  animation: blink 1s infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.dotOnline { color: #22c55e; }
+.dotOffline { color: #ef4444; }
+
+/* Model card */
+.modelCard {
+  background: rgba(255 255 255 / 0.03);
+  border: 1px solid rgba(255 255 255 / 0.07);
+  border-radius: 9px;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.modelRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modelBadge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(229 0 15 / 0.25);
+  color: #ff6b72;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+.modelBadgeMini {
+  background: rgba(96 165 250 / 0.2);
+  color: #93c5fd;
+}
+
+.modelName {
+  font-size: 11.5px;
+  color: rgba(255 255 255 / 0.45);
+}
+
