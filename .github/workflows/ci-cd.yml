@@ -27,7 +27,7 @@ jobs:
           JWT_SECRET_KEY: test-secret-key-for-ci
           OPENAI_API_KEY: sk-test
           POSTGRES_URL: sqlite+aiosqlite:///./test.db
-        run: pytest tests/ -v --tb=short
+        run: python -m pytest tests/ -v --tb=short
 
   deploy:
     name: Build & Push Docker Image
