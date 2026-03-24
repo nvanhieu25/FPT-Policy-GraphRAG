@@ -9,56 +9,81 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Graph search** (Neo4j) for relationship-based queries
 - **Hybrid routing** to intelligently choose or combine both search modes
 - **LangGraph orchestration** for multi-step agentic workflows
+- **JWT authentication** for user identity and session scoping
+- **LLM-based reranking** via OpenAI API (no local model required)
+- **Redis RAG cache** to skip retrieval for repeated queries (1h TTL)
 
 The system includes a FastAPI backend, React frontend, and four database services (PostgreSQL, Neo4j, Qdrant, Redis).
+
+---
 
 ## Architecture
 
 ### Backend Stack
 - **FastAPI** (uvicorn) — HTTP API server on port 8000
 - **LangChain / LangGraph** — LLM orchestration and agentic workflows
-- **PostgreSQL** — Persistent conversation storage (port 5432, exposed on 5433)
+- **PostgreSQL** — Persistent conversation and user storage (port 5432, exposed on 5433)
 - **Neo4j** — Graph database for relational policy data (port 7687)
 - **Qdrant** — Vector database for semantic search (port 6333)
-- **Redis** — Cache for conversation history with TTL (port 6379)
+- **Redis** — Cache for conversation history (24h TTL) and RAG query results (1h TTL)
 
 ### Frontend Stack
 - **React 18** with TypeScript
 - **Vite** for bundling and HMR
 - **React Markdown** for policy rendering
+- **JWT token** stored in `localStorage`, sent as `Authorization: Bearer` header
 
-### Key Layers
+---
+
+## Key Layers
 
 1. **Ingestion Pipeline** (`src/ingestion/`)
    - Extracts policies from documents (PDF via PyMUPDF)
    - Chunks content and creates embeddings
    - Populates Neo4j and Qdrant
 
-2. **LangGraph Workflow** (`src/core/graph.py`, `src/nodes/`)
-   - Routing node decides between vector/graph/hybrid search
-   - Qdrant and Neo4j search nodes execute retrieval
+2. **LangGraph Workflow** (`app/services/ai_service.py`, `app/services/nodes/`)
+   - Router node decides between vector/graph/hybrid search
+   - Qdrant and Neo4j search nodes execute retrieval in parallel via LangGraph branching
+   - LLM-based reranker scores and selects top-k combined results
    - Synthesizer aggregates results
    - Generator produces final answers
 
 3. **FastAPI Routes** (`app/api/routes/`)
-   - `/api/v1/chat` — Send query to compliance assistant
-   - `/api/v1/history/{session_id}` — Get/delete conversation history
+   - `POST /api/v1/auth/register` — Register new user
+   - `POST /api/v1/auth/token` — Login, returns JWT access token
+   - `GET  /api/v1/auth/me` — Get current user info (JWT protected)
+   - `POST /api/v1/chat` — Send query to compliance assistant (JWT protected)
+   - `GET  /api/v1/conversations` — List user's conversations (JWT protected)
+   - `GET  /api/v1/history/{session_id}` — Get conversation history (JWT protected)
+   - `DELETE /api/v1/history/{session_id}` — Delete conversation (JWT protected)
 
-4. **Data Persistence** (`app/db/`)
+4. **Authentication** (`app/core/auth.py`)
+   - JWT access tokens signed with `JWT_SECRET_KEY`
+   - `get_current_user` FastAPI dependency injected into all protected routes
+   - Passwords hashed with bcrypt via `passlib`
+
+5. **Data Persistence** (`app/db/`)
    - `models.py` — SQLAlchemy ORM models for PostgreSQL
-     - `Conversation` — Session metadata (title, message count, timestamps)
+     - `User` — User accounts (email, username, hashed_password, is_active)
+     - `Conversation` — Session metadata (title, message count, user_id FK)
      - `Message` — Individual messages (role: human/ai, content, created_at)
 
-5. **Services** (`app/services/`)
-   - `ai_service.py` — Main RAG orchestration (LangGraph)
-   - `cache_service.py` — Redis-backed session caching (24h TTL)
+6. **Services** (`app/services/`)
+   - `ai_service.py` — RAG orchestration (LangGraph) with Redis RAG cache
+   - `cache_service.py` — Redis session cache (24h) + RAG query cache (1h)
+   - `reranker.py` — LLM-based reranking via `gpt-4o-mini` structured output
+
+---
 
 ## Common Commands
 
 ### Backend Development
 
-**Install dependencies:**
+**Install dependencies (uv recommended):**
 ```bash
+uv sync
+# or
 pip install -r requirements.txt
 ```
 
@@ -69,9 +94,9 @@ python -m app.main
 Server runs on `http://localhost:8000`. API docs at `/docs`.
 
 **Environment setup:**
-Copy `.env.example` to `.env` and configure:
 ```bash
 cp .env.example .env
+# Fill in: JWT_SECRET_KEY, OPENAI_API_KEY, and database URIs
 ```
 
 ### Frontend Development
@@ -91,12 +116,6 @@ Frontend runs on `http://localhost:5173` (with HMR).
 ```bash
 npm run build
 ```
-Output: `frontend/dist/` — automatically served by FastAPI when present.
-
-**Linting:**
-```bash
-npm run lint
-```
 
 ### Docker & Full Stack
 
@@ -105,21 +124,22 @@ npm run lint
 docker compose up --build
 ```
 
-Port Mapping (host → container):
-| Service | Host Port | Container Port | Purpose |
-|---------|-----------|-----------------|---------|
-| Frontend | 3000 | 80 | React app (Nginx) |
-| Backend API | 8000 | 8000 | FastAPI |
-| Neo4j Browser | 7474 | 7474 | Graph DB UI |
-| Neo4j Bolt | 7687 | 7687 | Graph DB protocol |
-| Qdrant API | 6335 | 6333 | Vector DB REST |
-| Qdrant gRPC | 6336 | 6334 | Vector DB gRPC |
-| Redis | 6380 | 6379 | Cache layer |
-| PostgreSQL | 5433 | 5432 | Conversation DB |
+Port mapping (host → container):
 
-**Start only databases (for local backend development):**
+| Service       | Host Port | Container Port | Purpose              |
+|---------------|-----------|----------------|----------------------|
+| Frontend      | 3000      | 80             | React app (Nginx)    |
+| Backend API   | 8000      | 8000           | FastAPI              |
+| Neo4j Browser | 7474      | 7474           | Graph DB UI          |
+| Neo4j Bolt    | 7687      | 7687           | Graph DB protocol    |
+| Qdrant API    | 6335      | 6333           | Vector DB REST       |
+| Qdrant gRPC   | 6336      | 6334           | Vector DB gRPC       |
+| Redis         | 6380      | 6379           | Cache layer          |
+| PostgreSQL    | 5433      | 5432           | Conversation DB      |
+
+**Start only databases (for local backend dev):**
 ```bash
-docker compose up neo4j qdrant redis
+docker compose up neo4j qdrant redis postgres -d
 ```
 
 **Rebuild a specific service:**
@@ -127,199 +147,259 @@ docker compose up neo4j qdrant redis
 docker compose build backend && docker compose up backend
 ```
 
-## Database Setup & Ingestion
+### Testing
 
-### PostgreSQL (Persistent Conversation Storage)
-- Connection: `postgresql://fpt:fpt_password@localhost:5433/fpt_chat` (locally)
-- Inside Docker: `postgresql+asyncpg://fpt:fpt_password@postgres:5432/fpt_chat`
-- Tables: `conversations`, `messages`
-- Storage persisted to `data/postgres/`
-- **Schema auto-creates on first run** via SQLAlchemy ORM
+```bash
+# Run all tests
+python -m pytest tests/ -v
 
-### Redis (Session Cache - 24h TTL)
-- Host: `localhost`, Port: `6380` (mapped from container 6379)
-- Key pattern: `chat:history:{session_id}`
-- Persisted to `data/redis/`
-- Auto-cleanup after 24 hours (SESSION_TTL_SECONDS)
+# Run specific file
+python -m pytest tests/test_auth.py -v
+```
 
-### Neo4j (Policy Graph)
-- Bolt protocol: `bolt://localhost:7687` (or `neo4j:7687` inside Docker)
-- Auth: `neo4j / password` (from docker-compose.yml)
-- Browser UI: `http://localhost:7474`
-- Storage persisted to `data/neo4j/`
+---
 
-### Qdrant (Vector Search)
-- REST API: `http://localhost:6335`
-- gRPC: `localhost:6336`
-- Storage persisted to `data/qdrant/`
+## Authentication
+
+### Flow
+```
+POST /api/v1/auth/register  → create account
+POST /api/v1/auth/token     → login, returns { access_token }
+GET  /api/v1/auth/me        → get current user (Bearer token required)
+```
+
+### Protecting a route
+```python
+from app.core.auth import get_current_user
+
+@router.post("/chat")
+async def chat(
+    request: ChatRequest,
+    current_user: User = Depends(get_current_user),
+):
+```
+
+### Frontend token management
+- Token stored in `localStorage` under key `fpt_access_token`
+- All API requests send `Authorization: Bearer <token>` header
+- On 401 response → token cleared → page reloads to login screen
+
+---
+
+## GraphRAG Pipeline
+
+### Data flow per request
+```
+1. JWT validated → user identity extracted
+2. Load conversation history from Redis (24h cache)
+   └─ Cache miss → fallback to PostgreSQL
+3. Check RAG cache in Redis (1h TTL, key: rag:cache:{sha256(query)})
+   └─ Cache hit → skip retrieval, go to generation
+4. Router node → decide: vector / graph / both
+5. Qdrant search (k=5) → LLM reranker (gpt-4o-mini) → top 3 docs
+   + Neo4j search (Text2Cypher with fallback)
+6. Synthesizer → merge contexts
+7. Generator (gpt-4o) → final answer
+8. Store RAG result in Redis (1h TTL)
+9. Persist messages to PostgreSQL + update Redis session (24h TTL)
+```
+
+### Redis key patterns
+
+| Key pattern                    | TTL  | Purpose                     |
+|-------------------------------|------|-----------------------------|
+| `chat:history:{session_id}`   | 24h  | Conversation session cache  |
+| `rag:cache:{sha256_of_query}` | 1h   | GraphRAG retrieval cache    |
+
+### LLM-based reranker (`app/services/reranker.py`)
+- Sends query + top-5 Qdrant docs to `gpt-4o-mini` with structured output
+- LLM returns ranked indices → extract top-3
+- Fallback: if LLM fails → return original Qdrant order (top-3)
+- No local model or extra packages required
+
+---
 
 ## Project Structure
 
 ```
 .
-├── app/                        # FastAPI application
-│   ├── main.py                # Entry point, lifespan, SPA routing
+├── .github/
+│   └── workflows/
+│       └── ci-cd.yml              # GitHub Actions: test + Docker build/push
+│
+├── app/                           # FastAPI application
+│   ├── main.py                    # Entry point, lifespan, SPA routing
 │   ├── api/
-│   │   ├── router.py          # Central route aggregator
-│   │   └── routes/            # Endpoint implementations
-│   │       ├── message.py     # Chat query endpoint
-│   │       └── conversation.py # History retrieval/deletion
+│   │   ├── router.py              # Central route aggregator
+│   │   └── routes/
+│   │       ├── auth.py            # Register, login, me endpoints
+│   │       ├── message.py         # Chat endpoint (JWT protected)
+│   │       └── conversation.py    # History endpoints (JWT protected)
 │   ├── core/
-│   │   ├── config.py          # Settings management
-│   │   ├── database.py        # Neo4j, Qdrant connection mgmt
-│   │   └── redis_client.py    # Redis pool
-│   ├── db/                    # Database persistence
-│   │   ├── models.py          # SQLAlchemy ORM (Conversation, Message)
-│   │   └── session.py         # Database session factory
-│   ├── services/              # Business logic
-│   │   ├── ai_service.py      # RAG orchestration (LangGraph)
-│   │   ├── cache_service.py   # Redis integration
-│   │   └── nodes/             # LangGraph nodes
-│   └── schemas/               # Pydantic models
+│   │   ├── auth.py                # JWT logic, get_current_user dependency
+│   │   ├── config.py              # Settings (pydantic-settings)
+│   │   ├── database.py            # Neo4j, Qdrant connection mgmt
+│   │   └── redis_client.py        # Redis pool
+│   ├── db/
+│   │   ├── models.py              # User, Conversation, Message ORM models
+│   │   └── session.py             # Async session factory + init_db
+│   ├── services/
+│   │   ├── ai_service.py          # RAG orchestration with Redis cache
+│   │   ├── cache_service.py       # Session cache + RAG query cache
+│   │   ├── reranker.py            # LLM-based reranking (gpt-4o-mini)
+│   │   ├── conversation_service.py
+│   │   ├── user_service.py        # User CRUD
+│   │   └── nodes/
+│   │       ├── retrieval.py       # Router, Qdrant, Neo4j, synthesizer nodes
+│   │       └── generator.py       # Answer generation node
+│   └── schemas/
+│       ├── auth.py                # UserCreate, UserResponse, TokenResponse
+│       └── conversation.py        # ChatRequest, ChatResponse, HistoryResponse
 │
-├── frontend/                   # React + Vite
-│   ├── src/
-│   │   ├── components/        # UI components
-│   │   ├── hooks/             # Custom React hooks
-│   │   ├── types/             # TypeScript interfaces
-│   │   ├── api/               # API client code
-│   │   └── App.tsx            # Root component
-│   ├── package.json           # npm dependencies
-│   └── tsconfig.json          # TypeScript config
+├── frontend/                      # React + Vite
+│   └── src/
+│       ├── components/
+│       │   ├── Auth/              # LoginPage (login + register)
+│       │   ├── Chat/
+│       │   ├── Header/            # Header with logout button
+│       │   ├── Input/
+│       │   └── Sidebar/
+│       ├── hooks/
+│       │   └── useChat.ts
+│       ├── api/
+│       │   └── client.ts          # API client with JWT header + auth helpers
+│       ├── types/
+│       └── App.tsx                # Auth gate: shows LoginPage or Chat
 │
-├── src/                        # Shared Python logic (non-FastAPI)
-│   ├── core/
-│   │   ├── graph.py           # LangGraph workflow definition
-│   │   └── state.py           # State schemas for LangGraph
-│   ├── nodes/                 # LangGraph node implementations
-│   │   ├── retrieval.py       # Search/routing/synthesis nodes
-│   │   └── generator.py       # Answer generation node
-│   ├── services/              # Utilities
-│   │   ├── llm.py             # LLM client (OpenAI)
-│   │   └── embeddings.py      # Embedding model
-│   ├── storage/               # Database clients
-│   │   ├── graph_db.py        # Neo4j wrapper
-│   │   └── vector_db.py       # Qdrant wrapper
-│   └── ingestion/             # Data pipeline
-│       └── pipeline.py        # Document → chunks → embeddings
+├── src/                           # Shared Python logic
+│   ├── core/                      # LangGraph definitions (reference)
+│   ├── nodes/                     # Node implementations (reference)
+│   ├── services/                  # LLM + embedding clients
+│   ├── storage/                   # Neo4j + Qdrant wrappers
+│   └── ingestion/                 # Document ingestion pipeline
 │
-├── docker/                    # Dockerfiles
+├── docker/
 │   ├── backend.Dockerfile
 │   └── frontend.Dockerfile
 │
-├── data/                      # Persistent volumes
+├── tests/
+│   ├── conftest.py                # SQLite in-memory DB + ASGI client fixtures
+│   ├── test_auth.py               # Auth endpoint tests
+│   ├── test_chat.py               # Chat endpoint tests (mocked pipeline)
+│   └── test_retrieval.py          # Reranker unit tests
+│
+├── data/                          # Persistent volumes (gitignored)
 │   ├── neo4j/
 │   ├── qdrant/
-│   └── redis/
+│   ├── postgres/
+│   ├── redis/
+│   ├── raw/
+│   ├── processed/
+│   └── index/
 │
-├── docker-compose.yml         # Full stack orchestration
-├── requirements.txt           # Python dependencies
-├── .env.example               # Environment template
-└── README.md / claude.md      # Documentation
+├── docker-compose.yml
+├── requirements.txt               # Python dependencies
+├── pyproject.toml                 # uv dependency manifest
+├── pytest.ini                     # asyncio_mode = auto
+└── .env.example                   # Environment template
 ```
 
-## Data Flow
+---
 
-1. **Query arrives** → FastAPI `POST /api/v1/chat` with `{session_id, query}`
-2. **Load history** → Fetch from Redis (fast, 24h cache)
-   - If miss → Fetch from PostgreSQL (persistent backup)
-3. **AI Service** → Invokes LangGraph workflow with conversation context
-4. **Routing** → Router node decides search strategy (vector/graph/hybrid)
-5. **Retrieval** → Qdrant and/or Neo4j search nodes fetch policy context
-6. **Synthesis** → Aggregates and ranks search results
-7. **Generation** → LLM produces answer using context + conversation history
-8. **Persist** → Save conversation to both:
-   - **PostgreSQL** (persistent, permanent)
-   - **Redis** (cache, auto-expires after 24h)
-9. **Response** → Return answer to frontend
+## Environment Variables
 
-## Key Considerations
-
-### Connection Management
-- **FastAPI lifespan** handles startup/shutdown of Neo4j, Qdrant, Redis, and PostgreSQL
-- **Lazy initialization**: connections created on first use, not at startup
-- **PostgreSQL**: SQLAlchemy async session factory with connection pooling
-- **Tables auto-create** on first query (ORM declarative)
-- See `app/main.py` lifespan, `app/core/` modules, and `app/db/session.py`
-
-### Conversation Storage (Dual Layer)
-- **PostgreSQL**: Permanent, queryable, indexed by session_id
-- **Redis**: Cache with 24-hour TTL for fast access
-- On chat: load from Redis (fast) → fallback to PostgreSQL if not found
-- On save: write to both Redis and PostgreSQL simultaneously
-
-### Static File Serving
-- Built frontend (`frontend/dist/`) is mounted at `/` and `/assets`
-- If `frontend/dist/` doesn't exist, only API is available
-- Fallback SPA routing: all non-API paths serve `index.html` for client-side routing
-
-### CORS
-- Configured to allow all origins (`*`) for local development
-- Frontend dev server (port 5173) makes CORS requests to backend (port 8000)
-- Update in production
-
-### Environment Variables
-- Backend reads from `.env` (via `pydantic-settings`)
-- Docker Compose overrides with service hostnames (e.g., `NEO4J_URI=bolt://neo4j:7687`)
-- See `.env.example` for required keys (OpenAI API key, database URIs)
-
-## Accessing Services
-
-### Web Interfaces
-- **Frontend (User UI)**: http://localhost:3000
-- **Backend API Docs**: http://localhost:8000/docs (Swagger UI)
-- **Backend ReDoc**: http://localhost:8000/redoc
-- **Neo4j Browser**: http://localhost:7474 (user: `neo4j`, password: `password`)
-
-### Direct Database Access
 ```bash
-# PostgreSQL CLI
-docker exec fpt_postgres psql -U fpt -d fpt_chat
+# LLM (required)
+OPENAI_API_KEY=sk-...
 
-# Redis CLI
-docker exec fpt_redis redis-cli
+# JWT Authentication (required)
+JWT_SECRET_KEY=change-me-to-a-long-random-string-minimum-32-chars
+JWT_ALGORITHM=HS256
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES=1440
 
-# Neo4j Cypher Shell
-docker exec fpt_neo4j cypher-shell -u neo4j -p password
+# Neo4j
+NEO4J_URI=bolt://neo4j:7687
+NEO4J_USERNAME=neo4j
+NEO4J_PASSWORD=password
 
-# Qdrant REST API
-curl http://localhost:6335/collections
+# Qdrant
+QDRANT_URL=http://qdrant:6333
+
+# Redis
+REDIS_HOST=redis
+REDIS_PORT=6379
+
+# PostgreSQL
+POSTGRES_URL=postgresql+asyncpg://fpt:fpt_password@postgres:5432/fpt_chat
+
+# Reranker
+RERANKER_TOP_N=3
+
+# Cache TTL
+SESSION_TTL_SECONDS=86400
+RAG_CACHE_TTL_SECONDS=3600
+
+# LangSmith (optional)
+LANGCHAIN_TRACING_V2=false
+LANGCHAIN_API_KEY=
+LANGCHAIN_PROJECT=FPT_Policy_GraphRAG
 ```
 
-## Testing
+---
 
-Tests directory is present but currently empty. Testing is typically ad-hoc via:
-- Jupyter notebooks: `test_graphdb.ipynb`, `test_queries.ipynb`
-- Manual API testing: OpenAPI docs at `http://localhost:8000/docs`
-- Database inspection commands above
+## CI/CD Pipeline (`.github/workflows/ci-cd.yml`)
+
+**Triggers:** push to `main`/`develop`, PR to `main`
+
+**Jobs:**
+1. **test** — install deps, run `python -m pytest tests/` with SQLite (no real DB needed)
+2. **deploy** — build Docker image, push to GHCR (`ghcr.io/nvanhieu25/fpt-policy-graphrag/backend`)
+   - Only runs on push to `main` after `test` passes
+   - Tags: `latest` + `{commit-sha}`
+
+---
+
+## Database Setup
+
+### PostgreSQL
+- Tables auto-create on startup via `init_db()` (SQLAlchemy `create_all`)
+- Tables: `users`, `conversations`, `messages`
+- `conversations.user_id` is a nullable FK to `users.id`
+
+### Redis key patterns
+```bash
+# Session history
+docker exec fpt_redis redis-cli GET "chat:history:{session_id}"
+
+# RAG cache
+docker exec fpt_redis redis-cli KEYS "rag:cache:*"
+```
+
+### Neo4j graph schema
+- Node labels: `Policy`, `Department`, `Role`, `Concept`, `Employee`, `Document`
+- All nodes use `id` property only
+- Relationships: `REPORTS_TO`, `REQUIRES_APPROVAL_FROM`, `GOVERNS`, `HANDLES_ISSUE`
+
+---
 
 ## Troubleshooting
 
+**"Not authenticated" error in frontend:**
+- User needs to register/login first at `http://localhost:3000`
+- Token stored in `localStorage` — clear browser storage and re-login if expired
+
 **Backend won't connect to databases:**
-- Ensure docker containers are healthy: `docker compose ps`
-- Check environment variables in `.env`
-- Inside containers, services use internal hostnames:
-  - Neo4j: `neo4j:7687`
-  - Qdrant: `qdrant:6333`
-  - Redis: `redis:6379`
-  - PostgreSQL: `postgres:5432`
-- Locally, use `localhost` and mapped ports from docker-compose.yml
+- `docker compose ps` — check all containers are healthy
+- Inside Docker, use internal hostnames: `neo4j:7687`, `qdrant:6333`, `redis:6379`, `postgres:5432`
+
+**RAG responses slow (cache not working):**
+- Check Redis: `docker exec fpt_redis redis-cli keys "rag:cache:*"`
+- Verify `RAG_CACHE_TTL_SECONDS` is set in `.env`
 
 **PostgreSQL tables not created:**
-- Tables auto-create on first API call via SQLAlchemy ORM
-- To manually verify: `psql -h localhost -U fpt -d fpt_chat -p 5433`
-- Or use Docker: `docker exec fpt_postgres psql -U fpt -d fpt_chat -c "\\dt"`
+- Tables auto-create on first API call
+- Manual check: `docker exec fpt_postgres psql -U fpt -d fpt_chat -c "\dt"`
 
 **Frontend build fails:**
-- Clear node_modules: `cd frontend && rm -rf node_modules && npm install`
-- Check Node version (recommend 18+)
-
-**Redis connection issues:**
-- Redis client expects async context in FastAPI. See `app/services/cache_service.py`
-- Port mapping: container 6379 → host 6380
-- Check Redis health: `docker exec fpt_redis redis-cli ping`
-
-**Conversation history missing:**
-- Check Redis first (fast cache): `docker exec fpt_redis redis-cli GET "chat:history:{session_id}"`
-- Check PostgreSQL (persistent): `docker exec fpt_postgres psql -U fpt -d fpt_chat -c "SELECT * FROM conversations WHERE id = '{session_id}'"`
-- History expires in Redis after 24h but persists in PostgreSQL
+- `cd frontend && rm -rf node_modules && npm install`
+- Node version must be 18+
