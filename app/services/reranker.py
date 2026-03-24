@@ -1,32 +1,57 @@
 """
 app/services/reranker.py
 
-Cross-encoder reranking for Qdrant vector search results.
+LLM-based reranking for Qdrant vector search results.
+Uses the existing OpenAI client — no additional packages required.
 """
 import logging
-from sentence_transformers import CrossEncoder
+from langchain_openai import ChatOpenAI
+from pydantic import BaseModel, Field
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
-_model: CrossEncoder | None = None
 
 
-def get_reranker() -> CrossEncoder:
-    global _model
-    if _model is None:
-        logger.info("[Reranker] Loading cross-encoder model: %s", settings.reranker_model)
-        _model = CrossEncoder(settings.reranker_model)
-        logger.info("[Reranker] Model loaded.")
-    return _model
+class RankedIndices(BaseModel):
+    indices: list[int] = Field(
+        description="Indices of documents sorted by relevance to the query, most relevant first."
+    )
 
 
 def rerank(query: str, docs: list, top_n: int | None = None) -> list:
-    """Rerank LangChain Document objects by cross-encoder score. Returns top_n docs."""
+    """Rerank LangChain Document objects using LLM scoring. Returns top_n docs."""
     if not docs:
         return docs
+
     n = top_n if top_n is not None else settings.reranker_top_n
-    model = get_reranker()
-    pairs = [(query, doc.page_content) for doc in docs]
-    scores = model.predict(pairs)
-    ranked = sorted(zip(scores, docs), key=lambda x: x[0], reverse=True)
-    return [doc for _, doc in ranked[:n]]
+
+    numbered = "\n\n".join(
+        f"[{i}] {doc.page_content[:300]}" for i, doc in enumerate(docs)
+    )
+    prompt = f"""You are a relevance ranking assistant.
+Given the query and a list of document excerpts, return the indices of the documents \
+sorted from most to least relevant to the query. Only include the top {n} most relevant indices.
+
+Query: {query}
+
+Documents:
+{numbered}"""
+
+    llm = ChatOpenAI(temperature=0, model="gpt-4o-mini")
+    try:
+        result = llm.with_structured_output(RankedIndices).invoke(prompt)
+        top_indices = [i for i in result.indices if 0 <= i < len(docs)][:n]
+        reranked = [docs[i] for i in top_indices]
+        # Fill remaining slots if LLM returned fewer than n indices
+        if len(reranked) < n:
+            seen = set(top_indices)
+            for i, doc in enumerate(docs):
+                if i not in seen:
+                    reranked.append(doc)
+                if len(reranked) >= n:
+                    break
+        logger.debug("[Reranker] Reranked %d docs → top %d via LLM.", len(docs), n)
+        return reranked
+    except Exception as e:
+        logger.warning("[Reranker] LLM rerank failed, returning original order: %s", e)
+        return docs[:n]

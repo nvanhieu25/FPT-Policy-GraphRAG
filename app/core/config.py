@@ -37,7 +37,6 @@ class Settings(BaseSettings):
     jwt_access_token_expire_minutes: int = 60 * 24
 
     # Reranker
-    reranker_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
     reranker_top_n: int = 3
 
     # RAG cache

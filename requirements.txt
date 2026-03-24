@@ -33,9 +33,6 @@ asyncpg
 python-jose[cryptography]
 passlib[bcrypt]
 
-# Reranker
-sentence-transformers
-
 # Testing
 pytest
 pytest-asyncio
