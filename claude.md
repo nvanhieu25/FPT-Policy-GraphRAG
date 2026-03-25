@@ -80,11 +80,9 @@ The system includes a FastAPI backend, React frontend, and four database service
 
 ### Backend Development
 
-**Install dependencies (uv recommended):**
+**Install dependencies:**
 ```bash
 uv sync
-# or
-pip install -r requirements.txt
 ```
 
 **Run backend locally (with auto-reload):**
@@ -298,8 +296,8 @@ async def chat(
 │   └── index/
 │
 ├── docker-compose.yml
-├── requirements.txt               # Python dependencies
 ├── pyproject.toml                 # uv dependency manifest
+├── uv.lock                        # uv lockfile
 ├── pytest.ini                     # asyncio_mode = auto
 └── .env.example                   # Environment template
 ```
