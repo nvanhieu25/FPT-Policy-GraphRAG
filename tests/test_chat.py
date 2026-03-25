@@ -27,7 +27,7 @@ async def test_chat_unauthenticated(client):
 @pytest.mark.asyncio
 async def test_chat_authenticated(client):
     headers = await _register_and_login(client, "chat@fpt.com", "chatuser")
-    with patch("app.services.ai_service.run_query", new_callable=AsyncMock) as mock_run:
+    with patch("app.api.routes.message.run_query", new_callable=AsyncMock) as mock_run:
         mock_run.return_value = "mocked answer"
         resp = await client.post("/api/v1/chat",
             json={"session_id": "sess-001", "query": "What is the leave policy?"},
@@ -42,7 +42,7 @@ async def test_get_conversations_scoped(client):
     headers_a = await _register_and_login(client, "usera@fpt.com", "usera")
     headers_b = await _register_and_login(client, "userb@fpt.com", "userb")
 
-    with patch("app.services.ai_service.run_query", new_callable=AsyncMock) as mock_run:
+    with patch("app.api.routes.message.run_query", new_callable=AsyncMock) as mock_run:
         mock_run.return_value = "answer"
         await client.post("/api/v1/chat",
             json={"session_id": "sess-a", "query": "q"},

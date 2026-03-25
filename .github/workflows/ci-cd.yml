@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, develop]
   pull_request:
-    branches: [main]
+    branches: [main, develop]
 
 jobs:
   test:
@@ -33,6 +33,7 @@ jobs:
     name: Build & Push Docker Image
     runs-on: ubuntu-latest
     needs: test
+    # Chỉ deploy khi merge vào main (không deploy từ PR hay develop)
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
     steps:
@@ -49,7 +50,6 @@ jobs:
         with:
           context: .
           file: docker/backend.Dockerfile
-          target: production
           push: true
           tags: |
             ghcr.io/${{ github.repository }}/backend:latest
