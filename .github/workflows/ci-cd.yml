@@ -34,6 +34,9 @@ jobs:
     needs: test
     # Chỉ deploy khi merge vào main (không deploy từ PR hay develop)
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      contents: read
+      packages: write
 
     steps:
       - uses: actions/checkout@v4
