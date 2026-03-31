@@ -6,7 +6,7 @@ Moved from src/nodes/generator.py — import paths updated for the new structure
 Logic is unchanged.
 """
 from pathlib import Path
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, SystemMessage, HumanMessage
 from app.core.config import settings  # noqa: F401 (ensures env vars are loaded)
 from langchain_openai import ChatOpenAI
 
@@ -45,14 +45,23 @@ def answer_generator(state: dict) -> dict:
 
     # Load system prompt from external file
     system_prompt_template = load_system_prompt()
-    prompt = system_prompt_template.format(
+
+    # Format the context into the system prompt
+    formatted_system_prompt = system_prompt_template.format(
         info=info,
         hist_str=hist_str,
         question=question
     )
 
+    # Use proper message structure: SystemMessage + HumanMessage
+    # This ensures the LLM treats the instructions as system-level, not just text
+    messages = [
+        SystemMessage(content=formatted_system_prompt),
+        HumanMessage(content=question)
+    ]
+
     llm = get_generator_model()
-    response = llm.invoke(prompt)
+    response = llm.invoke(messages)
 
     return {
         "final_answer": response.content,
