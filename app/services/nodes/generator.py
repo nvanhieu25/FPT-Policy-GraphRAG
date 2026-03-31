@@ -40,28 +40,52 @@ def answer_generator(state: dict) -> dict:
     info = state["retrieved_info"]
     history = state.get("messages", [])
 
-    print("[AnswerGen] Generating final response to user...")
+    print("[AnswerGen] ========== START DEBUG ==========")
+    print(f"[AnswerGen] Question: {question}")
+    print(f"[AnswerGen] Retrieved info length: {len(info)} chars")
+    print(f"[AnswerGen] Info preview: {info[:200] if info else '(EMPTY)'}...")
+
     hist_str = "\n".join(f"{m.type}: {m.content}" for m in history)
 
     # Load system prompt from external file
-    system_prompt_template = load_system_prompt()
+    print("[AnswerGen] Loading system prompt from file...")
+    try:
+        system_prompt_template = load_system_prompt()
+        print(f"[AnswerGen] ✅ System prompt loaded ({len(system_prompt_template)} chars)")
+    except Exception as e:
+        print(f"[AnswerGen] ❌ Error loading system prompt: {e}")
+        raise
 
     # Format the context into the system prompt
-    formatted_system_prompt = system_prompt_template.format(
-        info=info,
-        hist_str=hist_str,
-        question=question
-    )
+    print("[AnswerGen] Formatting system prompt with context...")
+    try:
+        formatted_system_prompt = system_prompt_template.format(
+            info=info,
+            hist_str=hist_str,
+            question=question
+        )
+        print(f"[AnswerGen] ✅ System prompt formatted ({len(formatted_system_prompt)} chars)")
+        print(f"[AnswerGen] Formatted prompt preview:\n{formatted_system_prompt[:400]}...")
+    except Exception as e:
+        print(f"[AnswerGen] ❌ Error formatting prompt: {e}")
+        raise
 
     # Use proper message structure: SystemMessage + HumanMessage
-    # This ensures the LLM treats the instructions as system-level, not just text
+    print("[AnswerGen] Creating messages for LLM...")
     messages = [
         SystemMessage(content=formatted_system_prompt),
         HumanMessage(content=question)
     ]
+    print(f"[AnswerGen] ✅ Messages created: {len(messages)} messages")
+    print(f"[AnswerGen] Message types: {[type(m).__name__ for m in messages]}")
 
+    print("[AnswerGen] Invoking LLM (gpt-4o)...")
     llm = get_generator_model()
     response = llm.invoke(messages)
+
+    print(f"[AnswerGen] ✅ LLM response received ({len(response.content)} chars)")
+    print(f"[AnswerGen] Response:\n{response.content}")
+    print("[AnswerGen] ========== END DEBUG ==========")
 
     return {
         "final_answer": response.content,
