@@ -5,9 +5,18 @@ Provides the answer_generator node for the main LangGraph agent.
 Moved from src/nodes/generator.py — import paths updated for the new structure.
 Logic is unchanged.
 """
+from pathlib import Path
 from langchain_core.messages import AIMessage
 from app.core.config import settings  # noqa: F401 (ensures env vars are loaded)
 from langchain_openai import ChatOpenAI
+
+
+def load_system_prompt() -> str:
+    """Load system prompt from SYSTEM-PROMPT.md file."""
+    prompt_path = Path(__file__).parent.parent / "config" / "SYSTEM-PROMPT.md"
+    if not prompt_path.exists():
+        raise FileNotFoundError(f"System prompt file not found at {prompt_path}")
+    return prompt_path.read_text()
 
 
 def get_generator_model(temperature: float = 0, model: str = "gpt-4o") -> ChatOpenAI:
@@ -34,19 +43,14 @@ def answer_generator(state: dict) -> dict:
     print("[AnswerGen] Generating final response to user...")
     hist_str = "\n".join(f"{m.type}: {m.content}" for m in history)
 
-    prompt = f"""
-You are an expert FPT Software compliance AI assistant.
-Answer the user's question accurately using ONLY the provided retrieved information and conversation history.
-If the information is insufficient, state that clearly. Do not make up internal policies.
+    # Load system prompt from external file
+    system_prompt_template = load_system_prompt()
+    prompt = system_prompt_template.format(
+        info=info,
+        hist_str=hist_str,
+        question=question
+    )
 
-History:
-{hist_str}
-
-Retrieved Information:
-{info}
-
-Question: {question}
-"""
     llm = get_generator_model()
     response = llm.invoke(prompt)
 
