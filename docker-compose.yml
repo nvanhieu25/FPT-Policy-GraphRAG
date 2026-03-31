@@ -103,6 +103,7 @@ services:
 
   # ── Backend (FastAPI) ─────────────────────────────────────────────────────
   backend:
+    image: ghcr.io/nvanhieu25/fpt-policy-graphrag/backend:latest
     build:
       context: .
       dockerfile: docker/backend.Dockerfile
